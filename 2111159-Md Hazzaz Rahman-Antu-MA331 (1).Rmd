@@ -1,0 +1,130 @@
+---
+title: "MA331-Coursework"
+author: "2111159-Md Hazzaz Rahman-Antu"
+subtitle: Text analytics of the TED talks by Richard St. John and Margaret Gould Stewart
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+### Don't delete this setup code chunk from your file
+knitr::opts_chunk$set(echo = FALSE)   ## DON'T ALTER THIS: this is to prevent printing the code in your "html" file.
+
+# Extend the list below to load all the packages required for your analyses here:
+#===============================================================================
+library(dsEssex)
+library(tidyverse)
+library(tidytext)
+library(ggrepel)
+
+# load the 'ted_talks' data
+#=========================
+data(ted_talks)
+
+```
+
+
+## Introduction
+
+
+In modern times, we have a massive chunk of data on the internet & most of them are in the form of text. There is a natural language processing technique called sentiment analysis which determines the data whether is positive, negative, or neutral. So the project requires taking data of two speakers from the "Ted Talks", tokenizing them, and running sentiment analysis on them. So for this project, the two speakers are Richard St. John and Margaret Gould Stewar. In the report, word frequencies and sentiment analysis were presented and compared for the speeches that two speakers delivered. The first speaker, Richard St. John gave two speeches, one was in February 2009 and it was about "Success is a continuous journey". In which he shared personal experiences of both success and failure in life. So the gist of the speech is you can't stop working hard once you get succeded in your life because it's not a one-way road, it's a continuous process. His other speech was in "8 secrets of success" and the speech was from February 2005. In that speech, he explained eight secrets of getting successful. The second speaker, Margaret Gould Stewar gave three speeches in "Ted Talks". They are "How giant websites design for you (and a billion others, too)" in March 2014, "How YouTube thinks about copyright" in February 2010, "How the hyperlink changed everything" in March 2018. In these speeches, she mainly explained how small things can affect big upon us. Her speech was about technology that mainly big companies like Facebook and YouTube use. Each task helped us to investigate the most commonly used words in each speech and then do a sentiment analysis. It also analyses the emotions like surprise, trust, anger, sadness, etc.
+
+
+
+## Methods
+
+
+The methodology of the whole procedure is described here. Firstly, the dataset "ted_talks" loaded and the data has been pre-processed. After that, the top words & vocabulary comparison of both speakers has been visualized. Lastly, the sentiments have been calculated.
+
+Pre-processing: To preprocess the text-based data, tokenization is required which mainly do is identifies and breaks apart text into individual tokens. Then, the unnecessary words like stop words, laughter, the applause has been removed. 
+Visualizing top words: The top words that have been used by both of the speakers have been visualized by the bar charts. 
+
+Visualizing vocabulary comparison: The vocabulary comparison has been visualized by a graph to have a better understanding. In this graph, we can see what words have been used most by which speakers. The words that are closer to the diagonal line are used about evenly by both of the speakers and whilst words that are far away are used most by the one speaker. 
+
+Sentiment Analysis: It detected the emotions of the speakers whether they shows anger, sadness, surprise, etc.
+
+
+
+## Results
+
+
+**Visualizing top words:** In this section, the top words of both speakers have been shown separately. We can see from the bar charts that, the top words of Richard St. John is a success, good, says, said, push, etc and for Margaret Gould Stewar it is people, design, now, can, etc.
+
+```{r}
+#my data
+MyData <- ted_talks %>%
+filter(speaker %in% c("Richard St. John", "Margaret Gould Stewart"))
+
+tidy_talks <- MyData %>% 
+tidytext::unnest_tokens(word, text)
+
+rich_laughter <- tidy_talks%>%
+  filter(word== "laughter" | word== "applause")
+
+
+
+#stop words
+ted_talks_nonstop <- tidy_talks %>%
+dplyr::anti_join(get_stopwords()) %>%
+dplyr::anti_join(rich_laughter)
+
+#top words for Richard 
+Richard_words <- ted_talks_nonstop %>%
+dplyr::filter(speaker == "Richard St. John") %>% 
+dplyr::count(speaker, word, sort = TRUE)
+
+#top words for Margaret
+Margaret_words <- ted_talks_nonstop %>%
+dplyr::filter(speaker == "Margaret Gould Stewart") %>% 
+dplyr::count(speaker, word, sort = TRUE)
+#bar charts for Richard
+Richard_words  %>%
+dplyr::slice_max(n, n = 25) %>%
+dplyr::mutate(word = reorder(word, n)) %>%
+ggplot2::ggplot(aes(n, word)) + ggplot2::geom_col(fill="lightblue")
+
+#bar charts for Margaret
+Margaret_words %>%
+dplyr::slice_max(n, n = 25) %>%
+dplyr::mutate(word = reorder(word, n)) %>%
+ggplot2::ggplot(aes(n, word)) + ggplot2::geom_col(fill="pink")
+```
+
+**Visualizing vocabulary comparison:** From this section, we can say that, the words like thing, one, etc are used evenly by both speakers. Words like design, people are mostly used by the speaker Margaret Gould Stewar and words like success, and good is mostly used by the speaker Richard St. John.
+
+```{r}
+#visualization
+ted_talks_nonstop %>%
+count(speaker, word) %>%
+group_by(word) %>%
+filter(sum(n) > 5) %>%
+ungroup() %>%
+pivot_wider(names_from = "speaker", values_from = "n", values_fill = 0) %>%
+ggplot(aes(`Richard St. John`, `Margaret Gould Stewart`)) +
+geom_abline(color = "green", size = 1.2, alpha = 0.8, lty = 2) + 
+geom_text_repel(aes(label = word), max.overlaps = 20)
+
+```
+
+**Sentiment Analysis:** From the plot of sentiment we can say that the log odd ratio of emotions like surprise, anticipation, joy, anger is higher in Richard St. John's speech. In his speech, there is plenty of elements of surprise and also anticipation because these two emotions' ratio is much higher than the other two. Though his speech has mixed emotions, it also ends with joy so we can say that his speech is most likely positive. In Margaret Gould Stewar's speech, the log odds ratio of fear, negative, sadness, disgust, trust, positive emotions is higher than the first speaker. Though she has positive emotion in her speech the odd ratio is of that emotion is on the lower side. So, by the plot, we can say her overall speech has a negative emotions.
+
+```{r}
+#sentiment analysis
+tidy_talks %>%
+inner_join(get_sentiments("nrc"), by = "word")%>%
+count(speaker, sentiment) %>%
+pivot_wider(names_from = speaker, values_from = n, values_fill = 0)%>%
+mutate(OR = dsEssex::compute_OR(`Richard St. John`, `Margaret Gould Stewart`, correction = FALSE), log_OR = log(OR), sentiment = reorder(sentiment, log_OR)) %>%
+ggplot(aes(sentiment, log_OR, fill = log_OR < 0)) +
+geom_col(show.legend = FALSE) +
+ylab("Log odds ratio") + ggtitle("plot of sentiment") +
+coord_flip() + 
+scale_fill_manual(name = "", values = c("navyblue", "maroon"))
+```
+
+
+
+## Discussion
+
+In the end, we can say that, by this project one can have a clear idea about how to extract text from speeches, then tokenize them to be able to detect the emotions of the speech. There were some unnecessary data which we call stop words, we had to remove them. Because those words do not contain any values. Also, one of the challenges of this project was the laughter and applause from the audience during the speech. The laughter and the applause are not part of the speech so that had to be removed from the analysis. Every work has its own set of limitations. In this project, we can say that one word can have multiple emotions. If there is any way to detect the speaker's facial expression or gesture while giving the speech and then match it with the words, then it would have been flawless.
